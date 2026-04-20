@@ -22,6 +22,8 @@ class Player:
 class PokerGame:
     def __init__(self, players, sb, bb, starting_stack):
         self.players = [Player(player, starting_stack) for player in players]
+        self.waiting = []
+        self.starting_stack = starting_stack
         self.sb = sb
         self.bb = bb
         self.pot = 0
@@ -35,6 +37,7 @@ class PokerGame:
     def start_round(self):
         self.phase = GamePhase.PRE_FLOP
         self.dealer = (self.dealer + 1) % len(self.players)
+        self.players += self.waiting
         self.board = []
         self.pot = 0
         self.current_bet = 0
@@ -182,5 +185,11 @@ class PokerGame:
         for w in winners:
             w.chips += share
         self.phase = GamePhase.SHOWDOWN
+
+    def player_join(self, player_id):
+        for p in self.players + self.waiting:
+            if p.id == player_id:
+                raise ValueError("Player already in game")
+        self.waiting.append(Player(player_id, self.starting_stack))
 
 
