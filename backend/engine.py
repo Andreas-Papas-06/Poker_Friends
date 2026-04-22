@@ -18,6 +18,7 @@ class Player:
         self.folded = False
         self.all_in = False
         self.has_acted = False
+        self.leaving = False
 
 class PokerGame:
     def __init__(self, players, sb, bb, starting_stack):
@@ -36,6 +37,9 @@ class PokerGame:
 
     def start_round(self):
         self.phase = GamePhase.PRE_FLOP
+        for p in self.players:
+            if p.leaving:
+                self.players.remove(p)
         self.dealer = (self.dealer + 1) % len(self.players)
         self.players += self.waiting
         self.board = []
@@ -191,5 +195,20 @@ class PokerGame:
             if p.id == player_id:
                 raise ValueError("Player already in game")
         self.waiting.append(Player(player_id, self.starting_stack))
+
+    def player_leave(self, player_id):
+        for p in self.waiting:
+            if p.id == player_id:
+                self.waiting.remove(p)
+                return
+        for p in self.players:
+            if p.id == player_id and p.folded:
+                p.leaving = True
+            elif p.id == player_id:
+                p.folded = True
+                p.leaving = True
+
+        
+
 
 
