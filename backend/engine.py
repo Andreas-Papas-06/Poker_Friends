@@ -1,4 +1,6 @@
 from enum import Enum
+
+from curl_cffi import options
 import poker
 
 class GamePhase(Enum):
@@ -207,6 +209,19 @@ class PokerGame:
             elif p.id == player_id:
                 p.folded = True
                 p.leaving = True
+
+    def player_options(self, player_id):
+        for p in self.players:
+            if p.id == player_id:
+                if p.folded:
+                    return []
+                options = ['fold']
+                if self.current_bet == p.current_bet:
+                    options.append('check')
+                else:
+                    options.append('call')
+                    options.append('raise')
+                return options
 
         
 
