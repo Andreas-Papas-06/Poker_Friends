@@ -17,6 +17,7 @@ class Player:
         self.id = id
         self.chips = chips
         self.current_bet = 0
+        self.total_bet = 0
         self.folded = False
         self.all_in = False
         self.has_acted = False
@@ -94,6 +95,16 @@ class PokerGame:
             p.current_bet = 0
             p.has_acted = False
 
+    def return_extra_chips(self):
+        active = [p for p in self.players if not p.folded]
+        active.sort(key=lambda p: p.current_bet)
+        if active[-1] > active[-2]:
+            extra = active[-1].current_bet - active[-2].current_bet
+            active[-1].chips += extra
+            active[-1].current_bet -= extra
+            self.current_bet -= extra
+            self.pot -= extra
+
     def betting_round_over(self):
         for p in self.players:
             if p.folded or p.all_in:
@@ -127,6 +138,7 @@ class PokerGame:
         actual = min(amount, player.chips)
         player.chips -= actual
         player.current_bet += actual
+        player.total_bet += actual
         self.pot += actual
 
     def player_bet(self, player, amount):
@@ -138,6 +150,7 @@ class PokerGame:
         amount = min(amount, player.chips)
         player.chips -= amount
         player.current_bet += amount
+        player.total_bet += amount
         self.pot += amount
 
         if player.current_bet > self.current_bet:
@@ -159,6 +172,7 @@ class PokerGame:
             return
         
         if self.betting_round_over():
+            self.return_extra_chips()
             self.advance_phase()
         else:
             self.next_active_player()
@@ -186,8 +200,10 @@ class PokerGame:
         player.has_acted = True
         self.after_action()
 
-    def award_pot(self, winners):
-        share = self.pot / len(winners)
+    def award_pot(self, winners, amount=0):
+        if not amount:
+            amount = self.pot
+        share = amount / len(winners)
         for w in winners:
             w.chips += share
         self.phase = GamePhase.SHOWDOWN
