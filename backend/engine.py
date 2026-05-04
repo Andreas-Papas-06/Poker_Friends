@@ -143,7 +143,7 @@ class PokerGame:
         if player.current_bet > self.current_bet:
             self.current_bet = player.current_bet
             for p in self.players:
-                if not p.folded:
+                if not p.folded or not p.all_in:
                     p.has_acted = False
 
         if player.chips == 0:

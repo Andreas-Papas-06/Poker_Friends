@@ -24,7 +24,7 @@ class Card:
 def shuffle(deck):
     random.shuffle(deck)
 
-def new_deck():
+def new_deck(skip=[]):
     deck = []
     for i in range(2, 15):
         for j in range(4):
@@ -37,6 +37,8 @@ def new_deck():
             else:
                 suit = 'C'
 
+            if f"{i}{suit}" in skip:
+                continue
             card = Card(i, suit)
             deck.append(card)
     shuffle(deck)
@@ -53,6 +55,9 @@ def deal_flop(deck, board):
 def deal_next_card(deck, board):
    board.append(deck.pop())
 
+def get_score(hand):
+    return hand_calculator.calculate_hand(hand)
+
 def determine_winner(players, board):
     scores = []
     winners = []
@@ -68,7 +73,7 @@ def determine_winner(players, board):
             winners.append(i)
     return winners
 
-
+"""
 players = [[],[],[],[],[]]
 board = []
 deck = new_deck()
@@ -94,6 +99,6 @@ winners = determine_winner(players, board)
 print(f"Winner(s): ")
 for winner in winners:
     print(winner)
-
+"""
 
 

@@ -14,13 +14,13 @@ def is_flush(types, cards):
             straight_flush = int(is_straight(values))
             
             if {14, 13, 12, 11, 10}.issubset(set(values)):
-                print("Royal Flush")
+                #print("Royal Flush")
                 return 1000000
             elif straight_flush: 
-                print(f"{(straight_flush - 500000) // 1000} high Straight Flush")
+                #print(f"{(straight_flush - 500000) // 1000} high Straight Flush")
                 return  (5 if (straight_flush - 500000) // 1000 == 14 else (straight_flush - 500000) // 1000) + 900000
             else:
-                print(f"{max(values)} high flush")
+                #print(f"{max(values)} high flush")
                 score = 0
                 mult = 1000
                 for val in sorted(values, reverse=True)[:5]:
@@ -85,13 +85,13 @@ def is_quads_or_full_house(c):
     if quads:
         quad = quads[0]
         kicker = max([k for k in c if k != quad])
-        print(f"Four of a kind {quad}")
+        #print(f"Four of a kind {quad}")
         return 800000 + quad * 100 + kicker
     if len(trips) >= 2:
-        print(f"{trips[0]}s full of {trips[1]}s")
+        #print(f"{trips[0]}s full of {trips[1]}s")
         return 700000 + trips[0] * 100 + trips[1]
     elif trips and pairs:
-        print(f"{trips[0]}s full of {pairs[0]}s")
+        #print(f"{trips[0]}s full of {pairs[0]}s")
         return 700000 + trips[0] * 100 + pairs[0]
     return 0
 
@@ -114,21 +114,21 @@ def trips_two_pair(c):
     if trips:
         trip = trips[0]
         kickers = sorted([k for k in c if k != trip], reverse=True)[:2]
-        print(f"trip {trip}s")
+        #print(f"trip {trip}s")
         return 400000 + trip * 1000 + kickers[0] * 50 + kickers[1]
 
     # Two pair
     if len(pairs) >= 2:
         high, low = pairs[:2]
         kicker = max([k for k in c if k != high and k != low])
-        print(f"two pair {high}s and {low}s")
+        #print(f"two pair {high}s and {low}s")
         return 300000 + high * 1000 + low * 50 + kicker
 
     # One pair
     if pairs:
         pair = pairs[0]
         kickers = sorted([k for k in c if k != pair], reverse=True)[:3]
-        print(f"pair of {pair}s")
+        #print(f"pair of {pair}s")
         score = 0
         mult = 1000
         for val in kickers:
