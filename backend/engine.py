@@ -42,6 +42,8 @@ class PokerGame:
         self.round_start_pot = 0
 
     def start_round(self):
+        if len(self.players) < 2:
+            raise ValueError("Not enough players to start")
         self.phase = GamePhase.PRE_FLOP
         self.players = [p for p in self.players if not p.leaving]
         self.dealer = (self.dealer + 1) % len(self.players)
@@ -101,7 +103,7 @@ class PokerGame:
     def return_extra_chips(self):
         active = [p for p in self.players if not p.folded]
         active.sort(key=lambda p: p.current_bet)
-        if active[-1] > active[-2]:
+        if active[-1].current_bet > active[-2].current_bet:
             extra = active[-1].current_bet - active[-2].current_bet
             active[-1].chips += extra
             active[-1].current_bet -= extra
@@ -119,7 +121,7 @@ class PokerGame:
     
     def build_side_pots(self):
         all_in = [p for p in self.players if p.total_bet > 0]
-        side_pots = {}
+        side_pots = []
         current_bets = list(set([p.total_bet for p in all_in]))
         current_bets.sort()
         last_pot = 0
@@ -128,7 +130,7 @@ class PokerGame:
             contributers = [p for p in all_in if p.total_bet >= bet]
             players = [p for p in contributers if not p.folded]
             pot = bet * len(contributers)
-            side_pots[pot-last_pot] = players
+            side_pots.append((pot - last_pot, players))
             last_pot = pot
 
         return side_pots
@@ -136,7 +138,7 @@ class PokerGame:
     def resolve_showdown(self):
         if self.side_pot:
             self.side_pots = self.build_side_pots()
-            for pot, players in self.side_pots.items():
+            for pot, players in self.side_pots:
                 hands = [p.hand for p in players]
                 winners = poker.determine_winner(hands, self.board)
                 winner_players = [players[i] for i in winners]
@@ -160,7 +162,7 @@ class PokerGame:
         self.skip_to_showdown()
 
     def skip_to_showdown(self):
-        while self.phase not in (GamePhase.RIVER, GamePhase.SHOWDOWN):
+        while self.phase != GamePhase.SHOWDOWN:
             self.advance_phase()
 
 
@@ -189,7 +191,7 @@ class PokerGame:
         if player.current_bet > self.current_bet:
             self.current_bet = player.current_bet
             for p in self.players:
-                if not p.folded or not p.all_in:
+                if not p.folded and not p.all_in:
                     p.has_acted = False
 
         if player.chips == 0 and amount < self.current_bet:
@@ -202,6 +204,7 @@ class PokerGame:
         active = [p for p in self.players if not p.folded]
         if len(active) == 1:
             self.award_pot(active)
+            self.phase = GamePhase.SHOWDOWN
             return
         
         if self.betting_round_over():
@@ -237,7 +240,9 @@ class PokerGame:
         if not amount:
             amount = self.pot
         self.pot -= amount
-        share = amount / len(winners)
+        share = amount // len(winners)
+        remainder = amount % len(winners)
+        winners[0].chips += remainder 
         for w in winners:
             w.chips += share
 
@@ -258,17 +263,21 @@ class PokerGame:
             elif p.id == player_id:
                 p.folded = True
                 p.leaving = True
+                if self.players[self.action_turn] == p:
+                    self.after_action()
 
     def player_options(self, player_id):
         for p in self.players:
             if p.id == player_id:
                 if p.folded:
                     return []
+                to_call = self.current_bet - p.current_bet
                 options = ['fold']
-                if self.current_bet == p.current_bet:
+                if to_call == 0:
                     options.append('check')
                 else:
                     options.append('call')
+                if p.chips > to_call:
                     options.append('raise')
                 return options
 
