@@ -1,7 +1,5 @@
 from enum import Enum
-
-from curl_cffi import options
-import poker
+from backend.engine import poker
 
 class GamePhase(Enum):
     WAITING   = "waiting"
@@ -42,12 +40,13 @@ class PokerGame:
         self.round_start_pot = 0
 
     def start_round(self):
+        self.players += self.waiting
+        self.waiting = []
         if len(self.players) < 2:
             raise ValueError("Not enough players to start")
         self.phase = GamePhase.PRE_FLOP
         self.players = [p for p in self.players if not p.leaving]
         self.dealer = (self.dealer + 1) % len(self.players)
-        self.players += self.waiting
         self.board = []
         self.pot = 0
         self.current_bet = 0
@@ -166,14 +165,22 @@ class PokerGame:
             self.advance_phase()
 
 
-    def post_blind(self, player, amount):
+    def post_blind(self, player_id, amount):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
         actual = min(amount, player.chips)
         player.chips -= actual
         player.current_bet += actual
         player.total_bet += actual
         self.pot += actual
 
-    def player_bet(self, player, amount):
+    def player_bet(self, player_id, amount):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
         if player is None or player.folded:
             raise ValueError("Invalid player")
         if self.players[self.action_turn] != player:
@@ -213,11 +220,19 @@ class PokerGame:
         else:
             self.next_active_player()
 
-    def player_call(self, player):
+    def player_call(self, player_id):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
         to_call = self.current_bet - player.current_bet
-        self.player_bet(player, to_call) 
+        self.player_bet(player_id, to_call) 
         
-    def player_fold(self, player):
+    def player_fold(self, player_id):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
         if player is None or player.folded:
             raise ValueError("Invalid player")
         if self.players[self.action_turn] != player:
@@ -226,7 +241,11 @@ class PokerGame:
         player.has_acted = True
         self.after_action()
 
-    def player_check(self, player):
+    def player_check(self, player_id):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
         if player is None or player.folded:
             raise ValueError("Invalid player")
         if self.players[self.action_turn] != player:
@@ -250,7 +269,11 @@ class PokerGame:
         for p in self.players + self.waiting:
             if p.id == player_id:
                 raise ValueError("Player already in game")
-        self.waiting.append(Player(player_id, self.starting_stack))
+        new_player = Player(player_id, self.starting_stack)
+        if self.phase == GamePhase.WAITING:
+            self.players.append(new_player)   
+        else:
+            self.waiting.append(new_player)   
 
     def player_leave(self, player_id):
         for p in self.waiting:
@@ -280,6 +303,98 @@ class PokerGame:
                 if p.chips > to_call:
                     options.append('raise')
                 return options
+            
+
+
+# =============================================================================
+# PokerGame Module — Function Index
+# =============================================================================
+#
+# Player.__init__(self, id, chips)
+#   Initializes a player with a given ID and chip count. Sets up hand, betting,
+#   and status fields to their default values.
+#
+# PokerGame.__init__(self, players, sb, bb, starting_stack)
+#   Initializes the game with a list of player IDs, blind sizes, and starting
+#   stack. Sets up the deck, pot, board, and game phase.
+#
+# PokerGame.start_round(self)
+#   Begins a new round by dealing hands, posting blinds, and resetting player
+#   state. Rotates the dealer and merges any waiting players into the game.
+#
+# PokerGame.advance_phase(self)
+#   Moves the game to the next street (Flop → Turn → River → Showdown),
+#   dealing the appropriate community cards. Resets bets and repositions action.
+#
+# PokerGame.reset_bets(self)
+#   Clears all current bets and acted flags for every player. Also resets the
+#   table-level current bet to zero.
+#
+# PokerGame.return_extra_chips(self)
+#   Refunds any unmatched chips to the player who over-bet relative to the
+#   next-highest bet. Used when a player is all-in for less than the full bet.
+#
+# PokerGame.betting_round_over(self)
+#   Checks whether all active (non-folded, non-all-in) players have acted and
+#   matched the current bet. Returns True if the betting round is complete.
+#
+# PokerGame.build_side_pots(self)
+#   Constructs a list of side pots when one or more players are all-in.
+#   Each pot is paired with the subset of players eligible to win it.
+#
+# PokerGame.resolve_showdown(self)
+#   Evaluates hands at showdown and awards the pot(s) to the winner(s).
+#   Handles both standard pots and side pots from all-in situations.
+#
+# PokerGame.next_active_player(self)
+#   Advances action_turn to the next player who has not folded or gone all-in.
+#   If no such player exists, skips directly to showdown.
+#
+# PokerGame.skip_to_showdown(self)
+#   Repeatedly advances the phase until showdown is reached. Used when no
+#   further betting action is possible.
+#
+# PokerGame.post_blind(self, player, amount)
+#   Deducts the blind amount from a player's stack and adds it to the pot.
+#   Caps the blind at the player's remaining chips.
+#
+# PokerGame.player_bet(self, player, amount)
+#   Processes a bet or raise action, updating the player's chips and the pot.
+#   Detects all-in situations and triggers side pot logic if necessary.
+#
+# PokerGame.after_action(self)
+#   Called after any player action to check if the hand or betting round is
+#   over, and either awards the pot, advances the phase, or moves action along.
+#
+# PokerGame.player_call(self, player)
+#   Calls the current bet by computing the difference owed and delegating to
+#   player_bet.
+#
+# PokerGame.player_fold(self, player)
+#   Marks the player as folded and triggers after_action. Validates that it is
+#   the player's turn.
+#
+# PokerGame.player_check(self, player)
+#   Allows a player to check if no bet is owed. Raises an error if there is an
+#   outstanding bet that must be called or folded to.
+#
+# PokerGame.award_pot(self, winners, amount=0)
+#   Distributes the pot (or a specified amount) evenly among winners. Any
+#   indivisible remainder goes to the first winner in the list.
+#
+# PokerGame.player_join(self, player_id)
+#   Adds a new player to the waiting list to join at the start of the next
+#   round. Raises an error if the player is already in the game.
+#
+# PokerGame.player_leave(self, player_id)
+#   Handles a player's departure gracefully. Removes waiting players
+#   immediately; marks active players to fold and leave after their turn.
+#
+# PokerGame.player_options(self, player_id)
+#   Returns the list of valid actions (fold, check, call, raise) available to
+#   a given player based on the current bet and their chip count.
+#
+# =============================================================================
 
         
 

@@ -1,5 +1,5 @@
 import random
-import hand_calculator
+from backend.engine import hand_calculator
 
 class Card:
     def __init__(self, rank, suit):
