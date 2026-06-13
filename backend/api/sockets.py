@@ -18,15 +18,42 @@ async def join_game(sid, data):
         await sio.emit("error", {"message": "Game not found"}, to=sid)
         return
     entry["players"][sid] = player_id
-    entry["game"].player_join(player_id)
+    try:
+        entry["game"].player_join(player_id)
+    except ValueError as e:
+        await sio.emit("error", {"message": str(e)}, to=sid)
+        return
     await sio.enter_room(sid, game_id)
+    await broadcast_state(game_id, entry["game"])
+
+@sio.event
+async def leave_game(sid, data):
+    game_id = data['game_id']
+    entry = lobby.get_game(game_id)
+    if not entry or sid not in entry["players"]:
+        await sio.emit("error", {"message": "Not in this game"}, to=sid)
+        return
+    player_id = entry["players"].pop(sid)   # derive from sid AND remove the mapping
+    try:
+        entry["game"].player_leave(player_id)
+    except ValueError as e:
+        await sio.emit("error", {"message": str(e)}, to=sid)
+        return
+    await sio.leave_room(sid, game_id)      # leave, not enter
     await broadcast_state(game_id, entry["game"])
 
 @sio.event
 async def start_game(sid, data):
     game_id = data['game_id']
     entry = lobby.get_game(game_id)
-    entry['game'].start_round()
+    if not entry or sid not in entry["players"]:
+        await sio.emit("error", {"message": "Not in this game"}, to=sid)
+        return
+    try:
+        entry['game'].start_round()
+    except ValueError as e:
+        await sio.emit("error", {"message": str(e)}, to=sid)
+        return
     await broadcast_state(game_id, entry["game"])
 
 @sio.event
@@ -35,18 +62,25 @@ async def player_action(sid, data):
     action = data['action']
     amount = data.get("amount", 0)
     entry = lobby.get_game(game_id)
+    if not entry or sid not in entry["players"]:
+        await sio.emit("error", {"message": "Not in this game"}, to=sid)
+        return
     game = entry["game"]
     player_id = entry["players"][sid]
 
-    match action:
-        case 'fold':
-            game.player_fold(player_id)
-        case 'check':
-            game.player_check(player_id)
-        case 'call':
-            game.player_call(player_id)
-        case 'bet' | 'raise':
-            game.player_bet(player_id, amount)
+    try:
+        match action:
+            case 'fold':
+                game.player_fold(player_id)
+            case 'check':
+                game.player_check(player_id)
+            case 'call':
+                game.player_call(player_id)
+            case 'bet' | 'raise':
+                game.player_bet(player_id, amount)
+    except ValueError as e:
+        await sio.emit("error", {"message": str(e)}, to=sid)
+        return
 
     await broadcast_state(game_id, entry["game"])
 
