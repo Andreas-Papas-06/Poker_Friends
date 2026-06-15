@@ -38,6 +38,7 @@ class PokerGame:
         self.side_pot = False
         self.side_pots = {}
         self.round_start_pot = 0
+        self.player_data = {}
 
     def start_round(self):
         self.players += self.waiting
@@ -64,8 +65,8 @@ class PokerGame:
         poker.deal_hand(self.deck, [p.hand for p in self.players])
         sb = self.players[(self.dealer + 1) % len(self.players)]
         bb = self.players[(self.dealer + 2) % len(self.players)]
-        self.post_blind(sb, self.sb)
-        self.post_blind(bb, self.bb)
+        self.post_blind(sb.id, self.sb)
+        self.post_blind(bb.id, self.bb)
         self.current_bet = self.bb
 
         
@@ -266,14 +267,22 @@ class PokerGame:
             w.chips += share
 
     def player_join(self, player_id):
-        for p in self.players + self.waiting:
-            if p.id == player_id:
-                raise ValueError("Player already in game")
-        new_player = Player(player_id, self.starting_stack)
+        if player_id in self.player_data:
+            player = self.player_data[player_id]
+            player.leaving = False          
+            if player not in self.players and player not in self.waiting:
+                if self.phase == GamePhase.WAITING:
+                    self.players.append(player)
+                else:
+                    self.waiting.append(player)
+            return
+        # new player
+        player = Player(player_id, self.starting_stack)
+        self.player_data[player_id] = player
         if self.phase == GamePhase.WAITING:
-            self.players.append(new_player)   
+            self.players.append(player)
         else:
-            self.waiting.append(new_player)   
+            self.waiting.append(player)   
 
     def player_leave(self, player_id):
         for p in self.waiting:

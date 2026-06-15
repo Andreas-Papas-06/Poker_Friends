@@ -31,7 +31,7 @@ function Card({ card }) {
   )
 }
 
-export default function Table({ gameState, playerId, gameId, error }) {
+export default function Table({ gameState, playerId, gameId, error, onLeave }) {
   const [raiseAmount, setRaiseAmount] = useState(20)
 
   if (!gameState) return <p style={{ padding: 40 }}>Connecting…</p>
@@ -54,7 +54,12 @@ export default function Table({ gameState, playerId, gameId, error }) {
 
   return (
     <div style={{ padding: 40, fontFamily: 'sans-serif', maxWidth: 600 }}>
-      <h2>Table {gameId}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Table {gameId}</h2>
+        <button onClick={onLeave} style={{ padding: '6px 12px' }}>
+          Leave table
+        </button>
+      </div>
       {error && <p style={{ color: 'crimson' }}>{error}</p>}
       <p>
         Phase: <strong>{gameState.phase}</strong> &nbsp;|&nbsp; Pot:{' '}
