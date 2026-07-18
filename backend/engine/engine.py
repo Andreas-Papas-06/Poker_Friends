@@ -33,12 +33,14 @@ class PokerGame:
         self.deck = []
         self.phase = GamePhase.WAITING
         self.current_bet = 0
+        self.last_raise = 0
         self.action_turn = 0
         self.dealer = 0
         self.side_pot = False
         self.side_pots = {}
         self.round_start_pot = 0
         self.player_data = {}
+        self.last_result = []   # [{player_id, amount}] winners of the last completed hand
 
     def start_round(self):
         self.players += self.waiting
@@ -49,6 +51,7 @@ class PokerGame:
         self.players = [p for p in self.players if not p.leaving]
         self.dealer = (self.dealer + 1) % len(self.players)
         self.board = []
+        self.last_result = []
         self.pot = 0
         self.current_bet = 0
         self.side_pot = False
@@ -68,6 +71,7 @@ class PokerGame:
         self.post_blind(sb.id, self.sb)
         self.post_blind(bb.id, self.bb)
         self.current_bet = self.bb
+        self.last_raise = self.bb
 
         
 
@@ -96,12 +100,15 @@ class PokerGame:
 
     def reset_bets(self):
         self.current_bet = 0
+        self.last_raise = self.bb
         for p in self.players:
             p.current_bet = 0
             p.has_acted = False
 
     def return_extra_chips(self):
         active = [p for p in self.players if not p.folded]
+        if len(active) < 2:
+            return
         active.sort(key=lambda p: p.current_bet)
         if active[-1].current_bet > active[-2].current_bet:
             extra = active[-1].current_bet - active[-2].current_bet
@@ -197,6 +204,7 @@ class PokerGame:
             player.all_in = True
 
         if player.current_bet > self.current_bet:
+            self.last_raise = player.current_bet - self.current_bet
             self.current_bet = player.current_bet
             for p in self.players:
                 if not p.folded and not p.all_in:
@@ -210,8 +218,9 @@ class PokerGame:
 
     def after_action(self):
         active = [p for p in self.players if not p.folded]
-        if len(active) == 1:
-            self.award_pot(active)
+        if len(active) <= 1:
+            if active:
+                self.award_pot(active)
             self.phase = GamePhase.SHOWDOWN
             return
         
@@ -262,11 +271,15 @@ class PokerGame:
         self.pot -= amount
         share = amount // len(winners)
         remainder = amount % len(winners)
-        winners[0].chips += remainder 
+        winners[0].chips += remainder
         for w in winners:
             w.chips += share
+            won = share + (remainder if w is winners[0] else 0)
+            self.last_result.append({"player_id": w.id, "amount": won})
 
     def player_join(self, player_id):
+        if not (len(self.players) + len(self.waiting) < 9):
+            return
         if player_id in self.player_data:
             player = self.player_data[player_id]
             player.leaving = False          
@@ -301,9 +314,13 @@ class PokerGame:
     def player_options(self, player_id):
         for p in self.players:
             if p.id == player_id:
-                if p.folded:
-                    return []
+                if p.folded or p.all_in:
+                    return {"actions": [], "min_raise": 0, "max_raise": 0}
                 to_call = self.current_bet - p.current_bet
+                min_raise = self.current_bet + self.last_raise
+                opponents = [pl for pl in self.players if pl.id != player_id and not pl.folded]
+                opp_cap = max((pl.current_bet + pl.chips for pl in opponents), default=p.current_bet + p.chips)
+                max_raise = min(p.current_bet + p.chips, opp_cap)
                 options = ['fold']
                 if to_call == 0:
                     options.append('check')
@@ -311,7 +328,8 @@ class PokerGame:
                     options.append('call')
                 if p.chips > to_call:
                     options.append('raise')
-                return options
+                return {"actions": options, "min_raise": min_raise, "max_raise": max_raise}
+        return {"actions": [], "min_raise": 0, "max_raise": 0}
             
 
 

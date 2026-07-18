@@ -90,6 +90,9 @@ async def disconnect(sid):
     for game_id, entry in lobby.games.items():
         if sid in entry["players"]:
             player_id = entry["players"].pop(sid)
-            entry["game"].player_leave(player_id)
+            try:
+                entry["game"].player_leave(player_id)
+            except Exception:
+                pass
             await broadcast_state(game_id, entry["game"])
             break
