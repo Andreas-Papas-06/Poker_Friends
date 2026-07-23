@@ -14,6 +14,7 @@ class Player:
         self.hand = []
         self.id = id
         self.chips = chips
+        self.buy_ins = 1
         self.current_bet = 0
         self.total_bet = 0
         self.folded = False
@@ -22,12 +23,12 @@ class Player:
         self.leaving = False
 
 class PokerGame:
-    def __init__(self, players, sb, bb, starting_stack):
+    def __init__(self, players, sb, bb, starting_stack, rebuy, style, blind_increase):
         self.players = [Player(player, starting_stack) for player in players]
         self.waiting = []
         self.starting_stack = starting_stack
-        self.sb = sb
-        self.bb = bb
+        self.base_sb = sb
+        self.base_bb = bb
         self.pot = 0
         self.board = []
         self.deck = []
@@ -41,20 +42,33 @@ class PokerGame:
         self.round_start_pot = 0
         self.player_data = {}
         self.last_result = []   # [{player_id, amount}] winners of the last completed hand
+        self.all_in_runout = False   # set when the board must be run out (all players all-in)
+        self.rebuy = rebuy
+        self.hand_count = 0
+        self.sb = sb
+        self.bb = bb
+        self.style = style
+        self.blind_inc = blind_increase
 
     def start_round(self):
+        for p in self.players:
+            if p.chips == 0:
+                p.leaving = True          # busted players sit out (avoid triggering after_action mid-start)
+        self.players = [p for p in self.players if not p.leaving]
         self.players += self.waiting
         self.waiting = []
         if len(self.players) < 2:
             raise ValueError("Not enough players to start")
         self.phase = GamePhase.PRE_FLOP
-        self.players = [p for p in self.players if not p.leaving]
         self.dealer = (self.dealer + 1) % len(self.players)
         self.board = []
         self.last_result = []
+        self.all_in_runout = False
         self.pot = 0
         self.current_bet = 0
         self.side_pot = False
+        self.hand_count += 1
+        self.set_blinds()
         self.action_turn = (self.dealer + 3) % len(self.players)  
         for p in self.players:
             p.hand = []
@@ -104,6 +118,15 @@ class PokerGame:
         for p in self.players:
             p.current_bet = 0
             p.has_acted = False
+
+    def set_blinds(self):
+        if self.style == 'T' and self.blind_inc > 0:
+            level = (self.hand_count - 1) // self.blind_inc
+            self.sb = self.base_sb * 2**level
+            self.bb = self.base_bb * 2**level
+        else:
+            self.sb = self.base_sb
+            self.bb = self.base_bb
 
     def return_extra_chips(self):
         active = [p for p in self.players if not p.folded]
@@ -178,6 +201,8 @@ class PokerGame:
         for p in self.players:
             if p.id == player_id:
                 player = p
+        if player is None:
+            raise ValueError("Invalid player")
         actual = min(amount, player.chips)
         player.chips -= actual
         player.current_bet += actual
@@ -226,7 +251,15 @@ class PokerGame:
         
         if self.betting_round_over():
             self.return_extra_chips()
-            self.advance_phase()
+            # if at most one player can still act, no more betting is possible —
+            # run the remaining streets out to showdown
+            can_act = [p for p in active if not p.all_in]
+            if len(can_act) <= 1:
+                # no more betting possible — signal the async layer to run the
+                # board out street-by-street (with delays). Engine stays synchronous.
+                self.all_in_runout = True
+            else:
+                self.advance_phase()
         else:
             self.next_active_player()
 
@@ -235,8 +268,10 @@ class PokerGame:
         for p in self.players:
             if p.id == player_id:
                 player = p
+        if player is None:
+            raise ValueError("Invalid player")
         to_call = self.current_bet - player.current_bet
-        self.player_bet(player_id, to_call) 
+        self.player_bet(player_id, to_call)
         
     def player_fold(self, player_id):
         player = None
@@ -276,6 +311,18 @@ class PokerGame:
             w.chips += share
             won = share + (remainder if w is winners[0] else 0)
             self.last_result.append({"player_id": w.id, "amount": won})
+
+    def player_rebuy(self, player_id):
+        player = None
+        for p in self.players:
+            if p.id == player_id:
+                player = p
+        if player is None:
+            raise ValueError("Invalid player")
+        if self.rebuy and player.chips == 0:
+            if self.phase == GamePhase.WAITING or self.phase == GamePhase.SHOWDOWN:
+                player.buy_ins += 1
+                player.chips = self.starting_stack
 
     def player_join(self, player_id):
         if not (len(self.players) + len(self.waiting) < 9):

@@ -1,21 +1,27 @@
 import { useState } from 'react'
 import { API_BASE } from './socket'
+import CreateGameSettings from './components/CreateGameSettings'
 
 export default function Lobby({ onJoin, error }) {
+  const [showSettings, setShowSettings] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
 
-  async function createGame() {
-    if (!name.trim() || busy) return
+  async function createGame(settings) {         
+    if (busy) return
     setBusy(true)
+    const params = new URLSearchParams({
+      sb: settings.sb, bb: settings.bb,
+      starting_stack: settings.startingStack,
+      rebuy: settings.rebuy, style: settings.style,
+      blind_increase: settings.blindIncrease,
+    })
     try {
-      const res = await fetch(`${API_BASE}/games`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/games?${params}`, { method: 'POST' })
       const data = await res.json()
-      onJoin(data.game_id, name.trim())
-    } catch {
-      setBusy(false)
-    }
+      onJoin(data.game_id, name.trim())          
+    } catch { setBusy(false) }
   }
 
   function joinExisting() {
@@ -25,6 +31,9 @@ export default function Lobby({ onJoin, error }) {
 
   return (
     <div className="lobby">
+      <div className="header-bar">
+        <img src="media/pf_logo_v1.svg"></img>
+      </div>
       <div className="lobby-card">
         <h1 className="lobby-title">♠ Poker Friends</h1>
 
@@ -40,7 +49,7 @@ export default function Lobby({ onJoin, error }) {
 
         <button
           className="btn-primary btn-block"
-          onClick={createGame}
+          onClick={() => setShowSettings(true)}
           disabled={!name.trim() || busy}
         >
           {busy ? 'Creating…' : 'Create New Game'}
@@ -66,6 +75,7 @@ export default function Lobby({ onJoin, error }) {
           </button>
         </div>
       </div>
+      {showSettings && (<CreateGameSettings onClose={() => setShowSettings(false)} onCreate={createGame} playerName={name}/>)}
     </div>
   )
 }

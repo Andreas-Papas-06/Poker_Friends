@@ -15,8 +15,8 @@ socket_app = socketio.ASGIApp(sio, app)
 
 
 @app.post('/games')
-async def create_game(sb: int = 10, bb: int = 20, starting_stack: int = 1000):
-    game_id = lobby.create_game(sb, bb, starting_stack)
+async def create_game(sb: int = 10, bb: int = 20, starting_stack: int = 1000, rebuy: bool = True, style: str = 'C', blind_increase: int = 1):
+    game_id = lobby.create_game(sb, bb, starting_stack, rebuy, style, blind_increase)
     return {"game_id": game_id}
 
 @app.get("/games/{game_id}")

@@ -1,6 +1,9 @@
+import asyncio
+
 from backend.api.api import sio
 from backend.api import lobby
 from backend.engine.serializer import serialize_game
+from backend.engine.engine import GamePhase
 
 # Broadcast state function
 async def broadcast_state(game_id: str, game):
@@ -8,6 +11,21 @@ async def broadcast_state(game_id: str, game):
     for sid, player_id in entry["players"].items():
         state = serialize_game(game, player_id=player_id)
         await sio.emit("game_state", state, to=sid)
+
+
+async def broadcast_and_maybe_runout(game_id: str, game):
+    """Broadcast the current state, then if everyone is all-in, deal the
+    remaining streets one at a time with a pause between them."""
+    await broadcast_state(game_id, game)
+    if getattr(game, "all_in_runout", False):
+        game.all_in_runout = False
+        while game.phase != GamePhase.SHOWDOWN:
+            game.advance_phase()               # deal next street (or resolve on the river)
+            await broadcast_state(game_id, game)
+            if game.phase == GamePhase.FLOP:
+                await asyncio.sleep(2)          # linger on the flop
+            elif game.phase in (GamePhase.TURN, GamePhase.RIVER):
+                await asyncio.sleep(1)          # 1s between turn / river / showdown
 
 @sio.event
 async def join_game(sid, data):
@@ -40,7 +58,7 @@ async def leave_game(sid, data):
         await sio.emit("error", {"message": str(e)}, to=sid)
         return
     await sio.leave_room(sid, game_id)      # leave, not enter
-    await broadcast_state(game_id, entry["game"])
+    await broadcast_and_maybe_runout(game_id, entry["game"])
 
 @sio.event
 async def start_game(sid, data):
@@ -82,7 +100,7 @@ async def player_action(sid, data):
         await sio.emit("error", {"message": str(e)}, to=sid)
         return
 
-    await broadcast_state(game_id, entry["game"])
+    await broadcast_and_maybe_runout(game_id, game)
 
 @sio.event
 async def disconnect(sid):
@@ -94,5 +112,5 @@ async def disconnect(sid):
                 entry["game"].player_leave(player_id)
             except Exception:
                 pass
-            await broadcast_state(game_id, entry["game"])
+            await broadcast_and_maybe_runout(game_id, entry["game"])
             break

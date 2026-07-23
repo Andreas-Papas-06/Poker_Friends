@@ -1,0 +1,17 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eceef2"/>
+    </linearGradient>
+    <linearGradient id="faceBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f5f7"/>
+      <stop offset="1" stop-color="#dfe2e8"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <filter id="softer" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.20"/>
+    </filter>
+  </defs><rect x="0" y="0" width="512" height="512" fill="#000000"/><g transform="translate(40 40)"><g filter="url(#soft)"><g transform="rotate(14 250.0 215.0)"><rect x="150" y="70" width="200" height="290" rx="32" ry="32" fill="url(#faceBack)" stroke="#5b5b5b" stroke-width="7"/></g></g><g transform="translate(150.0 112.0) scale(2.0) rotate(14 50 51.5)"><path d="M50 86 C50 86 16 60 16 36 C16 25 24 17 34 17 C43 17 49 23 50 30 C51 23 57 17 66 17 C76 17 84 25 84 36 C84 60 50 86 50 86 Z" fill="#ec1c2b"/></g><g filter="url(#soft)"><g transform="rotate(-4 145.0 210.0)"><rect x="40" y="60" width="210" height="300" rx="34" ry="34" fill="url(#face)" stroke="#5b5b5b" stroke-width="7"/></g></g><g transform="translate(40.0 97.6) scale(2.1) rotate(-4 50 53.5)"><path d="M50 14 C50 14 16 42 16 62 C16 74 25 81 36 81 C42 81 47 78 50 73 C49 84 44 90 36 93 L64 93 C56 90 51 84 50 73 C53 78 58 81 64 81 C75 81 84 74 84 62 C84 42 50 14 50 14 Z" fill="#111111"/></g></g></svg>
