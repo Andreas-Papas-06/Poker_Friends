@@ -1,6 +1,7 @@
 import Card from './Card'
+import { formatAmount } from '../format'
 
-export default function Seat({ player, isYou, isTurn, isDealer }) {
+export default function Seat({ player, isYou, isTurn, isDealer, display }) {
   const { id, chips, current_bet, folded, all_in, hand } = player
 
   return (
@@ -27,12 +28,12 @@ export default function Seat({ player, isYou, isTurn, isDealer }) {
           {isDealer && <span className="dealer-button">D</span>}
           {id} {isYou && <span className="you-tag">(you)</span>}
         </div>
-        <div className="seat-chips">{chips}</div>
+        <div className="seat-chips">{formatAmount(chips, display)}</div>
         {all_in && <div className="seat-tag tag-allin">ALL IN</div>}
         {folded && <div className="seat-tag tag-folded">folded</div>}
       </div>
 
-      {current_bet > 0 && <div className="seat-bet">{current_bet}</div>}
+      {current_bet > 0 && <div className="seat-bet">{formatAmount(current_bet, display)}</div>}
     </div>
   )
 }

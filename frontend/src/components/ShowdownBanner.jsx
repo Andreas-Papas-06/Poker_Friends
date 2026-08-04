@@ -1,4 +1,6 @@
-export default function ShowdownBanner({ showdown, onNext }) {
+import { formatAmount } from '../format'
+
+export default function ShowdownBanner({ showdown, onNext, display }) {
   return (
     <div className="showdown-banner">
       <div className="showdown-results">
@@ -6,7 +8,7 @@ export default function ShowdownBanner({ showdown, onNext }) {
           ? 'Hand over'
           : showdown.map((w, i) => (
               <span key={i} className="showdown-win">
-                {w.player_id} wins {w.amount}
+                {w.player_id} wins {formatAmount(w.amount, display)}
               </span>
             ))}
       </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { socket } from './socket'
 
 const STORAGE_KEY = 'poker'
@@ -13,6 +13,11 @@ export function useGameState() {
   const [joined, setJoined] = useState(false)
   const [error, setError] = useState('')
 
+  // True once the server has sent us state for this session. Distinguishes
+  // "never got through" (fatal — bounce to the lobby) from a mid-game
+  // reconnect blip (socket.io retries on its own, so leave the table up).
+  const hasState = useRef(false)
+
   // stable: doesn't depend on current gameId/playerId (it sets them)
   const joinGame = useCallback((id, name) => {
     setGameId(id)
@@ -26,6 +31,7 @@ export function useGameState() {
   const leaveGame = useCallback(() => {
     socket.emit('leave_game', { game_id: gameId })
     localStorage.removeItem(STORAGE_KEY)
+    hasState.current = false
     setJoined(false)
     setGameState(null)
     setGameId('')
@@ -43,6 +49,7 @@ export function useGameState() {
   // socket listeners (attached once)
   useEffect(() => {
     function onState(state) {
+      hasState.current = true
       setGameState(state)
     }
     function onError(err) {
@@ -50,15 +57,29 @@ export function useGameState() {
       setTimeout(() => setError(''), 3000)
       if (err.message === 'Game not found') {
         localStorage.removeItem(STORAGE_KEY)
+        hasState.current = false
         setJoined(false)
         setGameState(null)
       }
     }
+    // Couldn't reach the server at all. Only fatal if we never got state —
+    // otherwise it's a reconnect attempt and socket.io keeps retrying.
+    function onConnectError() {
+      if (hasState.current) return
+      // Stop retrying, or the buffered join_game would fire later and hand us
+      // state while we're sitting on the lobby. joinGame reconnects on retry.
+      socket.disconnect()
+      setError("Can't reach the server — is the backend running?")
+      setJoined(false)
+      setGameState(null)
+    }
     socket.on('game_state', onState)
     socket.on('error', onError)
+    socket.on('connect_error', onConnectError)
     return () => {
       socket.off('game_state', onState)
       socket.off('error', onError)
+      socket.off('connect_error', onConnectError)
     }
   }, [])
 

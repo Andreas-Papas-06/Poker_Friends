@@ -468,6 +468,60 @@ select.text-input {
   cursor: pointer;
 }
 
+/* ---------- Chips / cash display switch ---------- */
+.display-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+.switch-label {
+  color: var(--muted);
+  font-size: 14px;
+  transition: color 0.2s;
+}
+.switch-label.active {
+  color: var(--gold);
+  font-weight: 600;
+}
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex: none;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.switch-track {
+  position: absolute;
+  inset: 0;
+  background: #3a464d;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.switch-track::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: var(--text);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.switch input:checked + .switch-track {
+  background: var(--gold);
+}
+.switch input:checked + .switch-track::before {
+  transform: translateX(20px);
+}
+
 @media (max-width: 560px) {
   .felt {
     border-radius: 60px;

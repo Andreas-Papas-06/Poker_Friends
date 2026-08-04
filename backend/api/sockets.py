@@ -108,9 +108,12 @@ async def disconnect(sid):
     for game_id, entry in lobby.games.items():
         if sid in entry["players"]:
             player_id = entry["players"].pop(sid)
-            try:
-                entry["game"].player_leave(player_id)
-            except Exception:
-                pass
+            # A page reload opens the new socket before this fires, so don't
+            # fold a player who already has a live socket under another sid.
+            if player_id not in entry["players"].values():
+                try:
+                    entry["game"].player_leave(player_id)
+                except Exception:
+                    pass
             await broadcast_and_maybe_runout(game_id, entry["game"])
             break

@@ -7,21 +7,30 @@ export default function Lobby({ onJoin, error }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
+  const [fetchError, setFetchError] = useState('')
 
-  async function createGame(settings) {         
+  async function createGame(settings) {
     if (busy) return
     setBusy(true)
+    setFetchError('')
     const params = new URLSearchParams({
       sb: settings.sb, bb: settings.bb,
       starting_stack: settings.startingStack,
       rebuy: settings.rebuy, style: settings.style,
       blind_increase: settings.blindIncrease,
+      display: settings.display,
     })
     try {
       const res = await fetch(`${API_BASE}/games?${params}`, { method: 'POST' })
+      if (!res.ok) throw new Error(`Server returned ${res.status}`)
       const data = await res.json()
-      onJoin(data.game_id, name.trim())          
-    } catch { setBusy(false) }
+      onJoin(data.game_id, name.trim())
+      return true
+    } catch {
+      setFetchError("Can't reach the server — is the backend running?")
+      setBusy(false)
+      return false
+    }
   }
 
   function joinExisting() {
@@ -37,7 +46,7 @@ export default function Lobby({ onJoin, error }) {
       <div className="lobby-card">
         <h1 className="lobby-title">♠ Poker Friends</h1>
 
-        {error && <div className="error-toast">{error}</div>}
+        {(error || fetchError) && <div className="error-toast">{error || fetchError}</div>}
 
         <label className="field-label">Your name</label>
         <input

@@ -10,6 +10,7 @@ def serialize_game(game, player_id=None) -> dict:
         "options": opts["actions"],
         "min_raise": opts["min_raise"],
         "max_raise": opts["max_raise"],
+        "display": game.display,
         "waiting": [p.id for p in game.waiting],
         "showdown": game.last_result if game.phase.name == "SHOWDOWN" else None,
         "players": [

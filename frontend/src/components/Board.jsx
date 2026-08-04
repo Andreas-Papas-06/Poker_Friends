@@ -1,6 +1,7 @@
 import Card from './Card'
+import { formatAmount } from '../format'
 
-export default function Board({ board, pot }) {
+export default function Board({ board, pot, display }) {
   return (
     <div className="board">
       <div className="board-cards">
@@ -12,7 +13,7 @@ export default function Board({ board, pot }) {
           )
         )}
       </div>
-      <div className="pot">Pot: {pot}</div>
+      <div className="pot">Pot: {formatAmount(pot, display)}</div>
     </div>
   )
 }

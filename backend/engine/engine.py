@@ -23,7 +23,7 @@ class Player:
         self.leaving = False
 
 class PokerGame:
-    def __init__(self, players, sb, bb, starting_stack, rebuy, style, blind_increase):
+    def __init__(self, players, sb, bb, starting_stack, rebuy, style, blind_increase, display):
         self.players = [Player(player, starting_stack) for player in players]
         self.waiting = []
         self.starting_stack = starting_stack
@@ -49,16 +49,21 @@ class PokerGame:
         self.bb = bb
         self.style = style
         self.blind_inc = blind_increase
+        self.display = display
 
     def start_round(self):
-        for p in self.players:
-            if p.chips == 0:
-                p.leaving = True          # busted players sit out (avoid triggering after_action mid-start)
-        self.players = [p for p in self.players if not p.leaving]
-        self.players += self.waiting
-        self.waiting = []
-        if len(self.players) < 2:
+        # Build the prospective roster first and only commit once it's valid —
+        # a refused start must not drop players or empty the waiting queue.
+        # Busted players sit out via the leaving flag rather than player_leave,
+        # which would trigger after_action mid-start.
+        busted = [p for p in self.players if p.chips == 0]
+        roster = [p for p in self.players if p.chips > 0 and not p.leaving] + self.waiting
+        if len(roster) < 2:
             raise ValueError("Not enough players to start")
+        for p in busted:
+            p.leaving = True
+        self.players = roster
+        self.waiting = []
         self.phase = GamePhase.PRE_FLOP
         self.dealer = (self.dealer + 1) % len(self.players)
         self.board = []
@@ -320,9 +325,9 @@ class PokerGame:
         if player is None:
             raise ValueError("Invalid player")
         if self.rebuy and player.chips == 0:
-            if self.phase == GamePhase.WAITING or self.phase == GamePhase.SHOWDOWN:
-                player.buy_ins += 1
-                player.chips = self.starting_stack
+            player.buy_ins += 1
+            player.chips = self.starting_stack
+            self.waiting.append(player)
 
     def player_join(self, player_id):
         if not (len(self.players) + len(self.waiting) < 9):
@@ -349,14 +354,19 @@ class PokerGame:
             if p.id == player_id:
                 self.waiting.remove(p)
                 return
+        # Only fold (and advance the action) when a hand is actually live.
+        # Between hands there is nothing to fold out of, and calling
+        # after_action there resolves a hand that never started.
+        in_hand = self.phase not in (GamePhase.WAITING, GamePhase.SHOWDOWN)
         for p in self.players:
-            if p.id == player_id and p.folded:
-                p.leaving = True
-            elif p.id == player_id:
+            if p.id != player_id:
+                continue
+            p.leaving = True
+            if in_hand and not p.folded:
                 p.folded = True
-                p.leaving = True
                 if self.players[self.action_turn] == p:
                     self.after_action()
+            return
 
     def player_options(self, player_id):
         for p in self.players:
