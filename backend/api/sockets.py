@@ -75,6 +75,22 @@ async def start_game(sid, data):
     await broadcast_state(game_id, entry["game"])
 
 @sio.event
+async def player_rebuy(sid, data):
+    game_id = data['game_id']
+    entry = lobby.get_game(game_id)
+    if not entry or sid not in entry["players"]:
+        await sio.emit("error", {"message": "Not in this game"}, to=sid)
+        return
+    player_id = entry["players"][sid]     # derive from sid, never trust data
+    try:
+        entry["game"].player_rebuy(player_id)
+    except ValueError as e:
+        await sio.emit("error", {"message": str(e)}, to=sid)
+        return
+    # a rebuy only happens between hands, so it can't trigger a run-out
+    await broadcast_state(game_id, entry["game"])
+
+@sio.event
 async def player_action(sid, data):
     game_id = data['game_id']
     action = data['action']

@@ -46,6 +46,10 @@ export function useGameState() {
     socket.emit('player_action', { game_id: gameId, action, amount })
   }, [gameId])
 
+  const rebuy = useCallback(() => {
+    socket.emit('player_rebuy', { game_id: gameId })
+  }, [gameId])
+
   // socket listeners (attached once)
   useEffect(() => {
     function onState(state) {
@@ -95,5 +99,5 @@ export function useGameState() {
     }
   }, [joinGame])
 
-  return { playerId, gameId, gameState, joined, error, joinGame, leaveGame, startGame, act }
+  return { playerId, gameId, gameState, joined, error, joinGame, leaveGame, startGame, act, rebuy }
 }

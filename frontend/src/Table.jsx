@@ -4,9 +4,10 @@ import ActionBar from './components/ActionBar'
 import ShowdownBanner from './components/ShowdownBanner'
 import { useState } from 'react'
 import ConfirmDialog from './components/ConfirmDialog'
+import { formatAmount } from './format'
 
 export default function Table({ game }) {
-  const { gameState: state, playerId, gameId, error, act, startGame, leaveGame } = game
+  const { gameState: state, playerId, gameId, error, act, startGame, leaveGame, rebuy } = game
   // hooks must run before any conditional return, or the "Connecting…" render
   // (which calls none) and the loaded render disagree on hook count
   const [confirmLeave, setConfirmLeave] = useState(false)
@@ -51,6 +52,12 @@ export default function Table({ game }) {
           </div>
         )}
 
+        {state.spectators?.length > 0 && (
+          <div className="waiting-note">
+            Spectating: {state.spectators.join(', ')}
+          </div>
+        )}
+
         {me && (
           <div className="you-seat">
             <Seat
@@ -65,6 +72,14 @@ export default function Table({ game }) {
       </div>
 
       <div className="controls">
+        {state.can_rebuy && (
+          <button className="btn-primary" onClick={rebuy}>
+            Rebuy {formatAmount(state.starting_stack, display)}
+          </button>
+        )}
+        {state.spectating && !state.can_rebuy && (
+          <div className="waiting-turn">Spectating</div>
+        )}
         {state.phase === 'WAITING' && (
           <div className="pregame">
             <div className="invite">

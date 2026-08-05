@@ -26,6 +26,7 @@ class PokerGame:
     def __init__(self, players, sb, bb, starting_stack, rebuy, style, blind_increase, display):
         self.players = [Player(player, starting_stack) for player in players]
         self.waiting = []
+        self.spectators = []
         self.starting_stack = starting_stack
         self.base_sb = sb
         self.base_bb = bb
@@ -54,14 +55,15 @@ class PokerGame:
     def start_round(self):
         # Build the prospective roster first and only commit once it's valid —
         # a refused start must not drop players or empty the waiting queue.
-        # Busted players sit out via the leaving flag rather than player_leave,
-        # which would trigger after_action mid-start.
+        # Busted players move to spectators — `leaving` means disconnected only,
+        # and setting it here would strand them on the hand after a rebuy.
         busted = [p for p in self.players if p.chips == 0]
         roster = [p for p in self.players if p.chips > 0 and not p.leaving] + self.waiting
         if len(roster) < 2:
             raise ValueError("Not enough players to start")
         for p in busted:
-            p.leaving = True
+            if p not in self.spectators:
+                self.spectators.append(p)
         self.players = roster
         self.waiting = []
         self.phase = GamePhase.PRE_FLOP
@@ -213,6 +215,7 @@ class PokerGame:
         player.current_bet += actual
         player.total_bet += actual
         self.pot += actual
+        if player.chips == 0: player.all_in = True
 
     def player_bet(self, player_id, amount):
         player = None
@@ -317,24 +320,48 @@ class PokerGame:
             won = share + (remainder if w is winners[0] else 0)
             self.last_result.append({"player_id": w.id, "amount": won})
 
-    def player_rebuy(self, player_id):
-        player = None
-        for p in self.players:
-            if p.id == player_id:
-                player = p
+    def rebuy_error(self, player_id):
+        """Why this player can't rebuy right now, or None if they can.
+
+        Single source of truth: player_rebuy raises on it, the serializer
+        renders the button from it, so the two can never disagree.
+        """
+        player = self.player_data.get(player_id)
         if player is None:
-            raise ValueError("Invalid player")
-        if self.rebuy and player.chips == 0:
-            player.buy_ins += 1
-            player.chips = self.starting_stack
-            self.waiting.append(player)
+            return "Invalid player"
+        if not self.rebuy:
+            return "Rebuys are off for this table"
+        if player.chips > 0:
+            return "You still have chips"
+        # A seated player is in the current hand — pulling them out mid-hand
+        # would strand their chips in the pot. A spectator isn't, so they may
+        # rebuy at any time and join the next deal.
+        if player in self.players and self.phase not in (GamePhase.WAITING, GamePhase.SHOWDOWN):
+            return "Can't rebuy during a hand"
+        # Seats they don't already occupy — a busted player still sitting at the
+        # table isn't taking a new one.
+        if len([p for p in self.players + self.waiting if p is not player]) >= 9:
+            return "Table is full"
+        return None
+
+    def player_rebuy(self, player_id):
+        err = self.rebuy_error(player_id)
+        if err:
+            raise ValueError(err)
+        player = self.player_data[player_id]
+        player.buy_ins += 1
+        player.chips = self.starting_stack
+        self.place_player(player, self.players if self.phase == GamePhase.WAITING else self.waiting)
 
     def player_join(self, player_id):
         if not (len(self.players) + len(self.waiting) < 9):
             return
         if player_id in self.player_data:
             player = self.player_data[player_id]
-            player.leaving = False          
+            player.leaving = False   
+            if player.chips == 0:
+                self.place_player(player, self.spectators)  
+                return     
             if player not in self.players and player not in self.waiting:
                 if self.phase == GamePhase.WAITING:
                     self.players.append(player)
@@ -353,6 +380,10 @@ class PokerGame:
         for p in self.waiting:
             if p.id == player_id:
                 self.waiting.remove(p)
+                return
+        for p in self.spectators:
+            if p.id == player_id:
+                self.spectators.remove(p)
                 return
         # Only fold (and advance the action) when a hand is actually live.
         # Between hands there is nothing to fold out of, and calling
@@ -387,6 +418,13 @@ class PokerGame:
                     options.append('raise')
                 return {"actions": options, "min_raise": min_raise, "max_raise": max_raise}
         return {"actions": [], "min_raise": 0, "max_raise": 0}
+
+    def place_player(self, player, target):
+        for lst in (self.players, self.waiting, self.spectators):
+            if player in lst:
+                lst.remove(player)
+        if target is not None:
+            target.append(player)
             
 
 
