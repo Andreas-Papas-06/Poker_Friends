@@ -59,7 +59,11 @@ export function useGameState() {
     function onError(err) {
       setError(err.message)
       setTimeout(() => setError(''), 3000)
-      if (err.message === 'Game not found') {
+      // A rejection before we ever received state means the join itself failed
+      // ("Game not found", "That name is taken") — bounce to the lobby rather
+      // than stranding the user on "Connecting…" forever. Errors during a game
+      // ("Not your turn") are just toasts.
+      if (!hasState.current || err.message === 'Game not found') {
         localStorage.removeItem(STORAGE_KEY)
         hasState.current = false
         setJoined(false)

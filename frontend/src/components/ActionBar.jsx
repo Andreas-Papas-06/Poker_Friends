@@ -29,6 +29,14 @@ export default function ActionBar({ options, state, playerId, onAct }) {
   const canRaise = options.includes('raise') && maxRaiseTo > state.current_bet
   const raiseLabel = toCall === 0 ? 'Bet' : 'Raise'
 
+  // Pot-relative sizing. Standard convention is that you call first and then bet
+  // a fraction of the resulting pot, so a full "Pot" raise puts you at
+  // current_bet + pot + toCall. state.pot already includes this street's bets.
+  // These only move the slider — the player still confirms.
+  const clamp = (v) => Math.min(Math.max(Math.round(v), minRaiseTo), maxRaiseTo)
+  const sizeTo = (fraction) =>
+    setRaiseTo(clamp(state.current_bet + fraction * (state.pot + toCall)))
+
   return (
     <div className="action-bar">
       {options.includes('fold') && (
@@ -48,6 +56,13 @@ export default function ActionBar({ options, state, playerId, onAct }) {
       )}
       {canRaise && (
         <div className="raise-group">
+          <div className="bet-sizes">
+            <button className="btn-size" onClick={() => sizeTo(0.25)}>¼ Pot</button>
+            <button className="btn-size" onClick={() => sizeTo(0.5)}>½ Pot</button>
+            <button className="btn-size" onClick={() => sizeTo(1)}>Pot</button>
+            <button className="btn-size" onClick={() => setRaiseTo(maxRaiseTo)}>Max</button>
+          </div>
+          <div className="raise-row">
           <input
             type="range"
             min={minRaiseTo}
@@ -74,6 +89,7 @@ export default function ActionBar({ options, state, playerId, onAct }) {
           >
             {raiseLabel} to {formatAmount(raiseTo, display)}
           </button>
+          </div>
         </div>
       )}
     </div>

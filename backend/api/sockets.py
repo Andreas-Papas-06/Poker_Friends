@@ -35,6 +35,13 @@ async def join_game(sid, data):
     if not entry:
         await sio.emit("error", {"message": "Game not found"}, to=sid)
         return
+    # Without accounts, player_id is just a typed name, and player_join treats a
+    # known name as a reconnect — so a stranger typing it would inherit that
+    # player's seat, stack and hole cards. Refuse names that are already live
+    # here. A disconnect pops the sid first, so genuine rejoins still pass.
+    if player_id in entry["players"].values():
+        await sio.emit("error", {"message": "That name is taken at this table"}, to=sid)
+        return
     entry["players"][sid] = player_id
     try:
         entry["game"].player_join(player_id)
