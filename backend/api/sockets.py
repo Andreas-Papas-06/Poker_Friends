@@ -79,7 +79,8 @@ async def start_game(sid, data):
     except ValueError as e:
         await sio.emit("error", {"message": str(e)}, to=sid)
         return
-    await broadcast_state(game_id, entry["game"])
+    # a hand can be all-in before anyone acts (blinds larger than a short stack)
+    await broadcast_and_maybe_runout(game_id, entry["game"])
 
 @sio.event
 async def player_rebuy(sid, data):

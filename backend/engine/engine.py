@@ -76,7 +76,6 @@ class PokerGame:
         self.side_pot = False
         self.hand_count += 1
         self.set_blinds()
-        self.action_turn = (self.dealer + 3) % len(self.players)  
         for p in self.players:
             p.hand = []
             p.current_bet = 0
@@ -93,6 +92,21 @@ class PokerGame:
         self.post_blind(bb.id, self.bb)
         self.current_bet = self.bb
         self.last_raise = self.bb
+
+        # Action starts left of the big blind — but only assign it after the
+        # blinds are posted, since a player whose blind used their whole stack
+        # is now all-in and has no actions. Handing them the turn freezes the
+        # hand, because nobody else can act to trigger after_action.
+        self.action_turn = (self.dealer + 2) % len(self.players)
+        for _ in range(len(self.players)):
+            self.action_turn = (self.action_turn + 1) % len(self.players)
+            p = self.players[self.action_turn]
+            if not p.folded and not p.all_in:
+                break
+        # No betting possible at all (everyone left is all-in on their blind) —
+        # flag it so the socket layer runs the board out.
+        if self.betting_round_over():
+            self.all_in_runout = True
 
         
 
@@ -116,7 +130,15 @@ class PokerGame:
             self.resolve_showdown()
             return
 
-        self.action_turn = (self.dealer + 1) % len(self.players)
+        # First live player left of the dealer — folded and all-in players have
+        # no legal actions, so landing on one freezes the hand. Bounded scan
+        # rather than next_active_player(), which recurses via skip_to_showdown.
+        self.action_turn = self.dealer
+        for _ in range(len(self.players)):
+            self.action_turn = (self.action_turn + 1) % len(self.players)
+            p = self.players[self.action_turn]
+            if not p.folded and not p.all_in:
+                break
 
 
     def reset_bets(self):
@@ -136,18 +158,31 @@ class PokerGame:
             self.bb = self.base_bb
 
     def return_extra_chips(self):
-        active = [p for p in self.players if not p.folded]
+        # An uncalled bet returns to whoever posted it even if they later fold —
+        # a blind is treated like any other bet. Filtering to unfolded players
+        # stranded the excess of, say, a big blind that short all-ins couldn't
+        # match, leaving a side-pot layer nobody was eligible to win.
+        active = sorted(self.players, key=lambda p: p.current_bet)
         if len(active) < 2:
             return
-        active.sort(key=lambda p: p.current_bet)
         if active[-1].current_bet > active[-2].current_bet:
             extra = active[-1].current_bet - active[-2].current_bet
             active[-1].chips += extra
             active[-1].current_bet -= extra
+            # total_bet drives build_side_pots — leaving it overstated makes the
+            # side pots sum to more than the pot actually holds, creating chips.
+            active[-1].total_bet -= extra
             self.current_bet -= extra
             self.pot -= extra
 
     def betting_round_over(self):
+        # If at most one player can still act and they have nothing to call,
+        # no further betting is possible — don't hand them an action they can
+        # only fold into, which would abandon a side pot with no eligible winner.
+        contenders = [p for p in self.players if not p.folded and not p.all_in]
+        if len(contenders) <= 1 and all(p.current_bet >= self.current_bet for p in contenders):
+            self.round_start_pot = self.pot
+            return True
         for p in self.players:
             if p.folded or p.all_in:
                 continue
@@ -166,9 +201,13 @@ class PokerGame:
         for bet in current_bets:
             contributers = [p for p in all_in if p.total_bet >= bet]
             players = [p for p in contributers if not p.folded]
-            pot = bet * len(contributers)
-            side_pots.append((pot - last_pot, players))
-            last_pot = pot
+            # Each layer is only what's owed *above* the previous level. Using a
+            # running total instead drops chips, because lower levels have more
+            # contributors than higher ones.
+            amount = (bet - last_pot) * len(contributers)
+            if amount:
+                side_pots.append((amount, players))
+            last_pot = bet
 
         return side_pots
     
